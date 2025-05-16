@@ -35,7 +35,7 @@ You need to organize your data in a manner similar to the following:
 │   │   │── t_f
 │   │   │── i_t.txt
 ```
-You download commonly used English recognition datasets (unpaired scene text editing dataset) via [ABINet](https://github.com/FangShancheng/ABINet/tree/main). You can refer to [MOSTEL](https://github.com/qqqyd/MOSTEL) to download the synthetic paired data.
+You can download commonly used English recognition datasets (unpaired scene text editing dataset) via [ABINet](https://github.com/FangShancheng/ABINet/tree/main). And you can refer to [MOSTEL](https://github.com/qqqyd/MOSTEL) to download the synthetic paired data.
 
 Note: Please note that in the current code repository, the default format for unpaired data is LMDB, while paired data follows the format of `train-50k`. If you wish to use a custom dataset, please modify the `dataloader/dataloader.py` implementation accordingly.
 
