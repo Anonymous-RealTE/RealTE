@@ -35,60 +35,6 @@ from models_mae_text import mae_vit_base_patch16_dec512d8b
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
-class FC(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 gain=2**(0.5),
-                 use_wscale=False,
-                 lrmul=1.0,
-                 bias=True):
-
-        super(FC, self).__init__()
-        he_std = gain * in_channels ** (-0.5)  # He init
-        if use_wscale:
-            init_std = 1.0 / lrmul
-            self.w_lrmul = he_std * lrmul
-        else:
-            init_std = he_std / lrmul
-            self.w_lrmul = lrmul
-
-        self.weight = torch.nn.Parameter(torch.randn(out_channels, in_channels) * init_std)
-        if bias:
-            self.bias = torch.nn.Parameter(torch.zeros(out_channels))
-            self.b_lrmul = lrmul
-        else:
-            self.bias = None
-        print(self.weight.device,"weight device")
-
-    def forward(self, x):
-        if self.bias is not None:
-            out = F.linear(x, self.weight * self.w_lrmul, self.bias * self.b_lrmul)
-        else:
-            out = F.linear(x, self.weight * self.w_lrmul)
-        out = F.leaky_relu(out, 0.2, inplace=True)
-        return out
-
-class ApplyStyle(nn.Module):
-    """
-        @ref: https://github.com/lernapparat/lernapparat/blob/master/style_gan/pytorch_style_gan.ipynb
-    """
-    def __init__(self, latent_size, channels, use_wscale):
-        super(ApplyStyle, self).__init__()
-        self.linear = FC(latent_size,
-                      channels * 2,
-                      gain=1.0,
-                      use_wscale=use_wscale)
-        # input_dim, hidden_dim, output_dim, num_layers
-
-    def forward(self, x, latent):
-        style = self.linear(latent)  # style => [batch_size, n_channels*2]
-        
-        shape = [-1, 2, x.size(1), 1, 1]
-        style = style.view(shape)    # [batch_size, 2, n_channels, ...]
-        x = x * (style[:, 0] + 1.) + style[:, 1]
-        return x
-
 @dataclass
 class UNet2DConditionOutput(BaseOutput):
     """
