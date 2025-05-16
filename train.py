@@ -177,9 +177,7 @@ def main(args):
         ori_labels = [] 
         reference = []
         char_glyph = []
-
-        # crop_image, bg_for_inpaint, mask_all, label, reference, char_glyph, resized_image
-    
+        
         for sample in batches:
             imgs.append(sample[0])
             bg_for_inpaint.append(sample[1])
@@ -187,6 +185,7 @@ def main(args):
             ori_labels.append(sample[3])
             reference.append(sample[4])
             char_glyph.append(sample[5])
+            is_pair = sample[-1]
 
         imgs = torch.stack(imgs, 0)
         bg_for_inpaint = torch.stack(bg_for_inpaint, 0)
@@ -205,21 +204,27 @@ def main(args):
 
 
     global_step = 0
-    train_dataset = LineText(True, args.data_root, args.datasets)
-    train_dataloader = torch.utils.data.DataLoader(
-        train_dataset,
+    unpaired_dataset = args.datasets.split("/")[0]
+    paired_dataset = args.datasets.split("/")[1]
+
+    unpaired_train_dataset = LineText(True, args.data_root, unpaired_dataset)
+    paired_train_dataset = LineText(True, args.data_root, paired_dataset)
+
+    unpaired_train_dataloader = torch.utils.data.DataLoader(
+        unpaired_train_dataset,
+        shuffle=True,
+        batch_size=args.train_batch_size,
+        num_workers=args.dataloader_num_workers,
+        collate_fn=collate_fn
+    )
+    paired_train_dataloader = torch.utils.data.DataLoader(
+        paired_train_dataset,
         shuffle=True,
         batch_size=args.train_batch_size,
         num_workers=args.dataloader_num_workers,
         collate_fn=collate_fn
     )
     
-    print(type(args.train_batch_size), type(args.gradient_accumulation_steps))
-    overrode_max_train_steps = False
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    if args.max_train_steps is None:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-        overrode_max_train_steps = True
     
     # Afterwards we recalculate our number of training epochs
     
@@ -229,30 +234,17 @@ def main(args):
         num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
         num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
     )
-    args.num_train_epochs = 10 #math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+    args.num_train_epochs = 10
 
-
-
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-       model, optimizer, train_dataloader, lr_scheduler
+    model, optimizer, unpaired_train_dataloader, paired_train_dataloader , lr_scheduler = accelerator.prepare(
+       model, optimizer, unpaired_train_dataloader, paired_train_dataloader, lr_scheduler
     )
-
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    if overrode_max_train_steps:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    # Afterwards we recalculate our number of training epochs
-    args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
-    
-    # We need to initialize the trackers we use, and also store our configuration.
-    # The trackers initializes automatically on the main process.
-    #if accelerator.is_main_process:
-    #    accelerator.init_trackers("TextEditor", config=vars(args))
 
     # Train!
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
     logger.info("***** Running training *****")
-    logger.info(f"  Num examples = {len(train_dataset)}")
+    logger.info(f"  Num examples = {len(unpaired_train_dataset) + len(paired_train_dataset)}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
     logger.info(f"  Instantaneous batch size per device = {args.train_batch_size}")
     logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
@@ -265,10 +257,29 @@ def main(args):
     progress_bar.set_description("Steps")
     loss_func = MaskMSELoss()
 
+    paired_iter = iter(paired_train_dataloader)
+    unpaired_iter = iter(unpaired_train_dataloader)
+
+
+
     for epoch in range(0, args.num_train_epochs):
         model.train()
-        for step, batch in enumerate(train_dataloader):
+        #for step, batch in enumerate(train_dataloader):
+        for step in range(args.max_train_steps):
             with accelerator.accumulate(model):
+                prob = random.random()
+                if prob < 0.5:
+                    ratio = random.choice([0.1, 0.6, 0.7, 0.8, 0.9])
+                    try:
+                        batch = next(unpaired_iter)
+                    except:
+                        unpaired_iter = iter(unpaired_train_dataloader)
+                else:
+                    ratio = 0
+                    try:
+                        batch = next(paired_iter)
+                    except:
+                        paired_iter = iter(paired_train_dataloader)
 
                 images = batch[0].to(weight_dtype).cuda()
                 bg_for_inpaint = batch[1].to(weight_dtype)
@@ -278,12 +289,12 @@ def main(args):
                 reference = batch[4].cuda().to(weight_dtype)
                 char_glyph = batch[5].cuda().to(weight_dtype)
 
-
                 mask_4 = mask.unsqueeze(1)
+                bs, c, h, w = images.shape
             
                 
-                model_pred, noise = model(images, bg_for_inpaint, reference, mask_4, char_glyph)
-           
+
+                model_pred, noise = model(images, bg_for_inpaint, reference, mask_4, char_glyph, ratio)
                 loss_stage_2, loss_stage_2_bg = loss_func(model_pred, noise, mask_4.expand_as(model_pred))
             
 
