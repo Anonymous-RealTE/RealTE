@@ -63,14 +63,15 @@ python infer_sft_model.py \
 In the provided example inference command, it is required by default to organize the benchmark in the following format:
 ```
 ├── datasets
-│   ├── Tamper-Scene
-│   │   │── i_s
-│   │   │── i_t.txt
-│   ├── ScenePair
-│   │   │── i_s
-│   │   │── t_f
-│   │   │── i_t.txt
-│   │   │── i_s.txt
+│   ├── evaluation
+│   │   │── Tamper-Scene
+│   │   │   │── i_s
+│   │   │   │── i_t.txt
+│   │   │── ScenePair
+│   │   │   │── i_s
+│   │   │   │── t_f
+│   │   │   │── i_t.txt
+│   │   │   │── i_s.txt
 ...
 ```
 ## 2.3 Evaluation
@@ -83,7 +84,7 @@ python eval_real.py --saved_model models/TPS-ResNet-BiLSTM-Attn.pth --gt_file ..
 ```
 ### MSE/PSNR/SSIM/FID
 ```bash
-CUDA_VISIBLE_DEVICES=1 python evaluation.py \
+python evaluation.py \
     --gt_path ../datasets/evaluation/ScenePair/t_f/ \
     --target_path ../test/eval_res/ScenePair/gen_images/
 ```
