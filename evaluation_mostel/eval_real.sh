@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=1 python eval_real.py --saved_model models/TPS-ResNet-BiLSTM-Attn.pth --gt_file ../datasets/evaluation/ScenePair/i_t.txt --image_folder ../test/eval_res/ScenePair_sft/gen_images/
+CUDA_VISIBLE_DEVICES=1 python eval_real.py --saved_model models/TPS-ResNet-BiLSTM-Attn.pth --gt_file ../datasets/evaluation/ScenePair/i_t.txt --image_folder ../test/eval_res/ScenePair/gen_images/
